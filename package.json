@@ -1,0 +1,17 @@
+{
+  "name": "file-server",
+  "version": "1.0.0",
+  "description": "开启一个本地服务器，显示一个本地文件目录中的文件",
+  "type": "module",
+  "main": "index.mjs",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "januwA",
+  "license": "ISC",
+  "dependencies": {
+    "dayjs": "^1.11.13",
+    "express": "^4.19.2",
+    "file-type": "^19.4.1"
+  }
+}
