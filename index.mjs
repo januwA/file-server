@@ -23,7 +23,6 @@ async function readFiles(p) {
 
     res.push({
       name,
-      size: s.size,
       time: dayjs(s.atime).format('YYYY-MM-DD HH:ss:mm'), // 访问时间戳（atime），修改时间戳（mtime）和更改时间戳（ctime）
       isFile: s.isFile(),
       isDir: s.isDirectory(),
@@ -41,9 +40,9 @@ function files2html(files) {
     if (f.isDir || !f.fileType) {
       return `
       <div>
+        <span>${f.isDir ? '🗂️' : '📄'}</span>
         <a href="./${link}/">${f.name}</a>
         <span>${f.time}</span>
-        <span>${f.size}</span>
       </div>
       `
     }
@@ -56,7 +55,7 @@ function files2html(files) {
     if (f.fileType.mime.includes('video')) {
       return `
       <figure>
-        <video src2="./${link}" controls preload="auto"></video>
+        <video src2="./${link}" controls preload="metadata"></video>
         <figcaption>${f.name}</figcaption>
       </figure>
       `
@@ -118,12 +117,16 @@ app.use(async (req, res) => {
       flex-direction: column;
       gap: 8px;
     }
+    body.grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
+    }
     video {
       width: 100%;
     }
   </style>
 </head>
-<body>
+<body class='grid'>
     <a href="../">../</a>
     ${files2html(files)}
 
