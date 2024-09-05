@@ -2,8 +2,10 @@ import express from "express";
 import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
+import { spawn } from "node:child_process";
 import { promisify } from 'node:util';
 import { fileTypeFromStream } from 'file-type';
+
 import dayjs from "dayjs";
 
 let local_path = ``;
@@ -55,7 +57,7 @@ function files2html(files) {
     if (f.fileType.mime.includes('video')) {
       return `
       <figure>
-        <video src2="./${link}" controls preload="metadata"></video>
+        <video src2="./${link}" controls src="./${link}" preload="none" loop></video>
         <figcaption>${f.name}</figcaption>
       </figure>
       `
@@ -64,7 +66,7 @@ function files2html(files) {
     if (f.fileType.mime.includes('audio')) {
       return `
       <figure>
-        <audio src2="./${link}" controls preload="auto"></audio>
+        <audio src2="./${link}" controls preload="none"></audio>
         <figcaption>${f.name}</figcaption>
       </figure>
       `
@@ -97,7 +99,41 @@ app.use(async (req, res) => {
   let s = await promisify(fs.stat)(p);
 
   if (s.isFile()) {
-    fs.createReadStream(p).pipe(res);
+    let poster = req.query.poster;
+    if (poster) {
+      // 获取video封面
+      // fs.createReadStream("p.jpg").pipe(res);
+
+      // 使用ffmpeg从视频中选择一帧
+      // ffmpeg -i a.mp4 -vf select='between(t\,1\,10)' -frames:v 1 -f image2 - | ffplay -
+      const ffmpeg = spawn('ffmpeg', [
+        '-i', p,
+        '-vf', `select='between(t\,1\,10)'`,
+        '-frames:v', '1',
+        '-f', 'image2',
+        '-'
+      ]);
+
+      ffmpeg.stdout.on('data', (chunk) => {
+        res.write(chunk);
+      });
+
+      ffmpeg.stderr.on('data', (data) => {
+        // console.error(`ffmpeg stderr: ${data}`);
+      });
+
+      ffmpeg.on('close', (code) => {
+        if (code === 0) {
+          res.end();
+        } else {
+          console.error('ffmpeg process exited with code ' + code);
+          res.status(500).send('Error generating image');
+        }
+      });
+    } else {
+      // 获取文件
+      fs.createReadStream(p).pipe(res);
+    }
     return
   }
 
@@ -131,22 +167,31 @@ app.use(async (req, res) => {
     ${files2html(files)}
 
   <script>
-    const els = document.querySelectorAll('video, audio, img');
-    const observer = new IntersectionObserver((entries, observer) => {
-      entries.forEach(entry => {
-        if (entry.isIntersecting) {
-          // 处理进入视口的视频
-          if (!entry.target.src) {
-            entry.target.src = entry.target.getAttribute('src2');
-          }
-        } else {
-          // 处理离开视口的视频
+
+  let observerCallback = (entries, observer) => {
+  entries.forEach(entry => {
+    if (entry.isIntersecting) {
+      entry.target.setAttribute('show', '1');
+      // 处理进入视口的视频，等待一会
+      setTimeout(() => {
+        if(!entry.target.getAttribute('show')) return;
+        if (!entry.target.src) {
+          entry.target.src = entry.target.getAttribute('src2');
         }
-      });
-    });
-    els.forEach(v => {
-      observer.observe(v);
-    });
+        if (!entry.target.poster && entry.target.nodeName) {
+          entry.target.poster = entry.target.getAttribute('src2') + '?poster=1'
+        }
+      }, 1000);
+    } else {
+      // 处理离开视口的视频
+      entry.target.removeAttribute('show');
+    }
+  });
+}
+
+const els = document.querySelectorAll('video, audio, img');
+const observer = new IntersectionObserver(observerCallback);
+els.forEach(v => { observer.observe(v); });
   </script>
 </body>
 </html>
@@ -185,4 +230,3 @@ function getLocalIPAddress() {
 }
 
 main();
-
