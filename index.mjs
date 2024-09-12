@@ -132,7 +132,8 @@ app.use(async (req, res) => {
       });
     } else {
       // 获取文件
-      fs.createReadStream(p).pipe(res);
+      res.sendFile(p);
+      // fs.createReadStream(p).pipe(res);
     }
     return
   }
