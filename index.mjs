@@ -95,7 +95,6 @@ app.use(async (req, res) => {
     return;
   }
 
-
   let s = await promisify(fs.stat)(p);
 
   if (s.isFile()) {
