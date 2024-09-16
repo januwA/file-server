@@ -3,7 +3,6 @@ import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
 import { spawn } from "node:child_process";
-import { promisify } from 'node:util';
 import { fileTypeFromStream } from 'file-type';
 
 import dayjs from "dayjs";
@@ -13,11 +12,11 @@ let local_path = ``;
 const app = express();
 
 async function readFiles(p) {
-  const names = await promisify(fs.readdir)(p);
+  const names = await fs.promises.readdir(p);
   const res = [];
   for (const name of names) {
     let filePath = path.join(p, name)
-    let s = await promisify(fs.stat)(filePath);
+    let s = await fs.promises.stat(filePath);
     let fileType = null;
     if (s.isFile()) {
       fileType = await fileTypeFromStream(fs.createReadStream(filePath));
@@ -95,7 +94,7 @@ app.use(async (req, res) => {
     return;
   }
 
-  let s = await promisify(fs.stat)(p);
+  let s = await fs.promises.stat(p);
 
   if (s.isFile()) {
     let poster = req.query.poster;
