@@ -3,28 +3,33 @@ import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
 import { spawn } from "node:child_process";
-import { fileTypeFromStream } from 'file-type';
-
+import { fileTypeFromStream } from "file-type";
 import dayjs from "dayjs";
 
 let local_path = ``;
 
 const app = express();
 
-async function readFiles(p) {
+async function readFiles(p: string) {
   const names = await fs.promises.readdir(p);
-  const res = [];
+  const res: Array<{
+    name: string;
+    time: string;
+    isFile: boolean;
+    isDir: boolean;
+    fileType: Awaited<ReturnType<typeof fileTypeFromStream>> | null;
+  }> = [];
   for (const name of names) {
-    let filePath = path.join(p, name)
+    let filePath = path.join(p, name);
     let s = await fs.promises.stat(filePath);
-    let fileType = null;
+    let fileType = null as Awaited<ReturnType<typeof fileTypeFromStream>> | null;
     if (s.isFile()) {
       fileType = await fileTypeFromStream(fs.createReadStream(filePath));
     }
 
     res.push({
       name,
-      time: dayjs(s.atime).format('YYYY-MM-DD HH:ss:mm'), // 访问时间戳（atime），修改时间戳（mtime）和更改时间戳（ctime）
+      time: dayjs(s.atime).format("YYYY-MM-DD HH:ss:mm"),
       isFile: s.isFile(),
       isDir: s.isDirectory(),
       fileType,
@@ -33,61 +38,59 @@ async function readFiles(p) {
   return res;
 }
 
-function files2html(files) {
-  //! 使用相对路劲url末尾需要反斜杠
-  return files.map(f => {
-    let link = f.name;
+function files2html(files: Awaited<ReturnType<typeof readFiles>>) {
+  return files
+    .map((f) => {
+      let link = f.name;
 
-    if (f.isDir || !f.fileType) {
-      return `
+      if (f.isDir || !f.fileType) {
+        return `
       <div>
-        <span>${f.isDir ? '🗂️' : '📄'}</span>
+        <span>${f.isDir ? "🗂️" : "📄"}</span>
         <a href="./${link}/">${f.name}</a>
         <span>${f.time}</span>
       </div>
-      `
-    }
+      `;
+      }
 
-    // preload 
-    // none: 表示不应该预加载视频
-    // metadata: 表示仅预先获取视频的元数据（例如长度）
-    // auto: 表示可以下载整个视频文件，即使用户不希望使用它
-    // 空字符串: 与 auto 值一致。
-    if (f.fileType.mime.includes('video')) {
-      return `
+      if (f.fileType.mime.includes("video")) {
+        return `
       <figure>
         <video src2="./${link}" controls src="./${link}" preload="none" loop></video>
         <figcaption>${f.name}</figcaption>
       </figure>
-      `
-    }
+      `;
+      }
 
-    if (f.fileType.mime.includes('audio')) {
-      return `
+      if (f.fileType.mime.includes("audio")) {
+        return `
       <figure>
         <audio src2="./${link}" controls preload="none"></audio>
         <figcaption>${f.name}</figcaption>
       </figure>
-      `
-    }
+      `;
+      }
 
-    if (f.fileType.mime.includes('image')) {
-      return `
+      if (f.fileType.mime.includes("image")) {
+        return `
       <figure>
         <img src2="./${link}" />
         <figcaption>${f.name}</figcaption>
       </figure>
-      `
-    }
-  }).join('')
+      `;
+      }
+      return ``;
+    })
+    .join("");
 }
 
 app.use(async (req, res) => {
-  let paths = req.path.split('/').filter(e => !!e).map(e => decodeURIComponent(e));
+  let paths = req.path
+    .split("/")
+    .filter((e) => !!e)
+    .map((e) => decodeURIComponent(e));
 
   let p = path.join(local_path, ...paths);
-
-  // console.log(paths, p, req.path);
 
   if (!fs.existsSync(p)) {
     res.status(404).end();
@@ -97,43 +100,40 @@ app.use(async (req, res) => {
   let s = await fs.promises.stat(p);
 
   if (s.isFile()) {
-    let poster = req.query.poster;
+    let poster = (req.query as any).poster;
     if (poster) {
-      // 获取video封面
-      // fs.createReadStream("p.jpg").pipe(res);
-
-      // 使用ffmpeg从视频中选择一帧
-      // ffmpeg -i a.mp4 -vf select='between(t\,1\,10)' -frames:v 1 -f image2 - | ffplay -
-      const ffmpeg = spawn('ffmpeg', [
-        '-i', p,
-        '-vf', `select='between(t\,1\,10)'`,
-        '-frames:v', '1',
-        '-f', 'image2',
-        '-'
+      const ffmpeg = spawn("ffmpeg", [
+        "-i",
+        p,
+        "-vf",
+        `select='between(t\,1\,10)'`,
+        "-frames:v",
+        "1",
+        "-f",
+        "image2",
+        "-",
       ]);
 
-      ffmpeg.stdout.on('data', (chunk) => {
+      ffmpeg.stdout.on("data", (chunk) => {
         res.write(chunk);
       });
 
-      ffmpeg.stderr.on('data', (data) => {
-        // console.error(`ffmpeg stderr: ${data}`);
+      ffmpeg.stderr.on("data", () => {
+        // ignore
       });
 
-      ffmpeg.on('close', (code) => {
+      ffmpeg.on("close", (code) => {
         if (code === 0) {
           res.end();
         } else {
-          console.error('ffmpeg process exited with code ' + code);
-          res.status(500).send('Error generating image');
+          console.error("ffmpeg process exited with code " + code);
+          res.status(500).send("Error generating image");
         }
       });
     } else {
-      // 获取文件
       res.sendFile(p);
-      // fs.createReadStream(p).pipe(res);
     }
-    return
+    return;
   }
 
   let files = await readFiles(p);
@@ -171,7 +171,6 @@ app.use(async (req, res) => {
   entries.forEach(entry => {
     if (entry.isIntersecting) {
       entry.target.setAttribute('show', '1');
-      // 处理进入视口的视频，等待一会
       setTimeout(() => {
         if(!entry.target.getAttribute('show')) return;
         if (!entry.target.src) {
@@ -182,7 +181,6 @@ app.use(async (req, res) => {
         }
       }, 1000);
     } else {
-      // 处理离开视口的视频
       entry.target.removeAttribute('show');
     }
   });
@@ -194,11 +192,11 @@ els.forEach(v => { observer.observe(v); });
   </script>
 </body>
 </html>
-  `)
+  `);
 });
 
 async function main() {
-  local_path = process.argv.at(-1);
+  local_path = process.argv.at(-1) as string;
   if (!fs.existsSync(local_path)) {
     console.error(`路径"${local_path}"不存在`);
     process.exit(0);
@@ -217,15 +215,17 @@ async function main() {
 function getLocalIPAddress() {
   const interfaces = os.networkInterfaces();
   for (const dev in interfaces) {
-    const faces = interfaces[dev];
+    const faces = interfaces[dev] ?? [];
     for (let i = 0; i < faces.length; i++) {
-      const iface = faces[i];
-      if (iface.family === 'IPv4' && iface.internal === false) {
+      const iface = faces[i]!;
+      if (iface.family === "IPv4" && iface.internal === false) {
         return iface.address;
       }
     }
   }
-  return 'localhost';
+  return "localhost";
 }
 
 main();
+
+

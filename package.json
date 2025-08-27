@@ -3,9 +3,12 @@
   "version": "1.0.0",
   "description": "开启一个本地服务器，显示一个本地文件目录中的文件",
   "type": "module",
-  "main": "index.mjs",
+  "main": "dist/index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "dev": "tsx src/index.ts",
+    "build": "tsc -p .",
+    "start": "node dist/index.js"
   },
   "author": "januwA",
   "license": "ISC",
@@ -15,6 +18,9 @@
     "file-type": "^19.4.1"
   },
   "devDependencies": {
-    "@types/node": "^22.5.5"
+    "@types/express": "^5.0.3",
+    "@types/node": "^22.5.5",
+    "tsx": "^4.20.5",
+    "typescript": "^5.9.2"
   }
 }
